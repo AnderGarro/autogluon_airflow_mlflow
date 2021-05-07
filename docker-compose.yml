@@ -1,0 +1,143 @@
+version: '3'
+services:
+
+    jupyter:
+        build:
+            context: ./docker/jupyter
+            dockerfile: Dockerfile
+        image: mlops/jupyter
+        container_name: mlops-dev-jupyter
+        hostname: jupyter
+        volumes:
+            - ./notebooks:/notebooks
+            - ./docker/data:/data
+        ports:
+            - "1995:8888"
+
+        networks:
+            - backend
+
+    postgres-mlflow:
+        image: postgres:9.6
+        container_name: mlops-dev-mlflow_postgres
+        restart: always
+        environment:
+            - POSTGRES_USER=mlflow_user
+            - POSTGRES_PASSWORD=mlflow
+            - POSTGRES_DB=mlflow_db
+        ports:
+            - "15432:5432" #external port
+        networks:
+            - backend        
+        volumes:
+            #- pgdata:/var/lib/postgresql/data #use it on windows
+            - ./docker/data/postgres:/var/lib/postgresql/data #use it on linux
+        logging:
+           options:
+             max-size: 10m
+             max-file: "3"
+
+    postgres:
+        image: postgres:9.6
+        container_name: mlops-dev-airflow_postgres
+        restart: always
+        environment:
+            - POSTGRES_USER=airflow
+            - POSTGRES_PASSWORD=airflow
+            - POSTGRES_DB=airflow
+        networks:
+            - airflow
+        logging:
+           options:
+             max-size: 10m
+             max-file: "3"
+           
+    s3server:
+        image: minio/minio
+        container_name: mlops-dev-mlflow_s3
+        restart: always
+        ports:
+            - "9000:9000"
+        networks:
+            - backend
+        volumes:
+            - ./docker/data/s3:/data #use it on linux
+        environment:
+            MINIO_ACCESS_KEY: "AKIAIOSFODNN7EXAMPLE"
+            MINIO_SECRET_KEY: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        logging:
+           options:
+             max-size: 10m
+             max-file: "3"
+        command: server --address 0.0.0.0:9000 /data
+
+    web:
+        restart: always
+        build: ./docker/mlflow
+        image: mlflow_server
+        container_name: mlops-dev-mlflow_server
+        expose:
+            - "5000"
+        networks:
+            - frontend
+            - backend
+        environment:
+            AWS_ACCESS_KEY_ID: "AKIAIOSFODNN7EXAMPLE"
+            AWS_SECRET_ACCESS_KEY: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+            MLFLOW_S3_ENDPOINT_URL: "http://s3server:80"
+        command: mlflow server --backend-store-uri postgresql://mlflow_user:mlflow@postgres-mlflow:5432/mlflow_db --default-artifact-root s3://mlflow-bucket/mlflow/ --host 0.0.0.0        
+
+    nginx:
+        restart: always
+        build: ./docker/nginx
+        image: mlflow_nginx
+        container_name: mlops-dev-mlflow_nginx
+        ports:
+            - "80:80"
+        networks:
+            - frontend
+            - backend
+        depends_on:
+            - web
+
+
+    webserver:
+        build:
+            context: ./docker/airflow
+            dockerfile: Dockerfile
+        image: airflow_local_auto
+        restart: always
+        container_name: mlops-dev-airflow
+        depends_on:
+            - postgres
+        environment:
+            - LOAD_EX=n
+            - EXECUTOR=Local
+
+        logging:
+            options:
+                max-size: 10m
+                max-file: "3"
+        volumes:
+            - ./dags:/usr/local/airflow/dags
+            - ./docker/data/:/data
+        ports:
+            - "8080:8080"
+        networks:
+            - airflow
+            - backend
+        command: webserver
+        healthcheck:
+            test: ["CMD-SHELL", "[ -f /usr/local/airflow/airflow-webserver.pid ]"]
+            interval: 30s
+            timeout: 30s
+            retries: 3
+            
+
+networks:
+    frontend:
+        driver: bridge
+    backend:
+        driver: bridge
+    airflow:
+        driver: bridge
