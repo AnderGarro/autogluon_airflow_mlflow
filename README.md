@@ -1,3 +1,5 @@
+![STACK](img/header.jpg)
+
 # MLOps + AutoMl approach to Stroke prediction
 
 This a demo MLOps deployment for a model training and stream procesing using AutoGluon AutoMl, MlFlow and Airflow stack for a stroke prediction case of use. The process is orqhestrated using Apache Airflow with contains three DAGS:
