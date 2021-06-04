@@ -33,7 +33,7 @@ Following varibales will be used as enviroment variable and might be found withi
 The process is orqhestrated using Apache Airflow with contains three DAGS:
 - dags/stroke_insert_data.py: Represents the ETL process.
 - dags/stroke_train_model.py: Trains a classification model form inserted data using AutGLuon AutoMl framewrok and updates model to MlFlow authomatically
-- stroke_eval_data.py: Evaluates data isnertion on a batch process using best model updates to MlFlow.
+- dags/stroke_eval_data.py: Evaluates data isnertion on a batch process using best model updates to MlFlow.
 Airflow instantiates AutoGLuoon during training process, trying a bunch of classification models and sticking to the best fit. Then, Airflow will take best fit and update it as an experiment to a Mlflow bucket. 
 
 Turn on three DAGs. Every process will be run every our. If you want to make the stream and train process faster you may run DADS manually or reset cron schedule configuration
